@@ -1,0 +1,7 @@
+{
+  "name": "FOCO: O Mestre de Tarefas Agressivo do André",
+  "description": "Um aplicativo de produtividade de alta performance com um 'Modo Vigilante' movido a IA que te persegue até você completar suas tarefas usando Gemini 3 Flash.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
