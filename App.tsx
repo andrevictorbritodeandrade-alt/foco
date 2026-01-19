@@ -1,22 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Bell, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Bell, Download, Tag, RefreshCw, Search } from 'lucide-react';
 import { TaskCard } from './components/TaskCard';
-import { getNaggingMessage } from './services/ai';
+import { getNaggingMessage, getTaskInsight } from './services/ai';
 import { requestNotificationPermission } from './services/firebase';
 import { Task, Category } from './types';
 
 const CATEGORIES: Category[] = [
-  { id: 'work', name: 'TRABALHO', color: 'text-blue-400', iconName: 'Briefcase' },
-  { id: 'personal', name: 'PESSOAL', color: 'text-green-400', iconName: 'User' },
-  { id: 'health', name: 'SAÚDE', color: 'text-red-400', iconName: 'Heart' },
-  { id: 'study', name: 'ESTUDOS', color: 'text-yellow-400', iconName: 'BookOpen' },
+  { id: 'all', name: 'TUDO', color: 'text-white', bgColor: 'bg-indigo-600', iconName: 'LayoutGrid' },
+  { id: 'health', name: 'SAÚDE', color: 'text-rose-500', bgColor: 'bg-white', iconName: 'HeartPulse' },
+  { id: 'travel', name: 'VIAGEM', color: 'text-cyan-500', bgColor: 'bg-white', iconName: 'Plane' },
+  { id: 'car', name: 'CARRO & C...', color: 'text-amber-600', bgColor: 'bg-white', iconName: 'Car' },
+  { id: 'personal', name: 'PESSOAL', color: 'text-purple-500', bgColor: 'bg-white', iconName: 'Camera' },
+  { id: 'study', name: 'ESTUDO', color: 'text-emerald-500', bgColor: 'bg-white', iconName: 'Book' },
+  { id: 'projects', name: 'PROJETOS', color: 'text-indigo-500', bgColor: 'bg-white', iconName: 'Settings' },
+  { id: 'general', name: 'GERAL', color: 'text-orange-500', bgColor: 'bg-white', iconName: 'Tag' },
 ];
 
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTaskText, setNewTaskText] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0].id);
-  const [nagMessage, setNagMessage] = useState('Carregando insultos...');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [nagMessage, setNagMessage] = useState('Carregando sistema...');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -31,24 +35,26 @@ export default function App() {
     setLoading(false);
   };
 
-  const addTask = () => {
+  const addTask = async () => {
     if (!newTaskText.trim()) return;
+    
+    const catId = selectedCategory === 'all' ? 'general' : selectedCategory;
     const newTask: Task = {
       id: Date.now(),
       text: newTaskText,
-      categoryId: selectedCategory,
+      categoryId: catId,
       completed: false,
       createdAt: Date.now(),
-      dueDate: new Date(Date.now() + 86400000).toISOString()
     };
-    const updated = [newTask, ...tasks];
-    setTasks(updated);
+
+    setTasks(prev => [newTask, ...prev]);
     setNewTaskText('');
+
+    // Adiciona insight da IA automaticamente
+    const insight = await getTaskInsight(newTask);
+    setTasks(prev => prev.map(t => t.id === newTask.id ? { ...t, insight } : t));
     
-    // Trigger nag update slightly after adding
-    setTimeout(() => {
-        getNaggingMessage(updated.filter(t => !t.completed)).then(setNagMessage);
-    }, 1000);
+    updateNag();
   };
 
   const toggleTask = (id: number) => {
@@ -59,81 +65,143 @@ export default function App() {
     setTasks(tasks.filter(t => t.id !== id));
   };
 
-  return (
-    <div className="min-h-screen p-6 pb-24 md:p-12 max-w-2xl mx-auto">
-      <header className="mb-12 flex justify-between items-center">
-        <div>
-          <h1 className="text-4xl font-black tracking-tighter mb-2">FOCO</h1>
-          <p className="text-slate-400 font-medium">Modo Vigilante: <span className="text-emerald-400">ATIVO</span></p>
-        </div>
-        <button onClick={() => requestNotificationPermission()} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
-          <Bell size={20} />
-        </button>
-      </header>
+  const filteredTasks = useMemo(() => 
+    selectedCategory === 'all' ? tasks : tasks.filter(t => t.categoryId === selectedCategory)
+  , [tasks, selectedCategory]);
 
-      {/* AI Nagging Section */}
-      <div className="mb-10 p-6 bg-rose-500/10 border border-rose-500/20 rounded-[2rem] relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4">
-             <button onClick={updateNag} className="text-rose-500 opacity-50 hover:opacity-100">
-                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-             </button>
-        </div>
-        <p className="text-rose-400 font-bold text-sm uppercase tracking-widest mb-2">Mensagem do Coach</p>
-        <p className="text-xl md:text-2xl font-black text-white leading-tight">
-          "{nagMessage}"
-        </p>
+  const progress = useMemo(() => {
+    if (tasks.length === 0) return 0;
+    const completed = tasks.filter(t => t.completed).length;
+    return Math.round((completed / tasks.length) * 100);
+  }, [tasks]);
+
+  return (
+    <div className="min-h-screen bg-[#050a18] text-white pb-20">
+      {/* Banner de Ativação */}
+      <div className="bg-[#0a1229] py-2 text-center border-b border-white/5">
+        <button onClick={requestNotificationPermission} className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400 hover:text-white transition-colors">
+          Clique aqui para ativar os alertas do coach.
+        </button>
       </div>
 
-      {/* Input Section */}
-      <div className="mb-12 space-y-4">
-        <input
-          type="text"
-          value={newTaskText}
-          onChange={(e) => setNewTaskText(e.target.value)}
-          placeholder="O que você precisa fazer?"
-          className="w-full bg-white/5 border border-white/10 rounded-[2rem] px-6 py-5 text-lg font-bold text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
-          onKeyDown={(e) => e.key === 'Enter' && addTask()}
-        />
-        
-        <div className="flex flex-wrap gap-2 items-center">
+      <div className="max-w-xl mx-auto px-6 pt-6">
+        {/* Progress Bar Section */}
+        <div className="bg-white rounded-3xl p-5 mb-10 shadow-lg">
+          <div className="flex justify-between items-center mb-3 px-1">
+            <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Meta de André</span>
+            <span className="text-xl font-black text-[#050a18]">{progress}%</span>
+          </div>
+          <div className="h-3 bg-amber-50 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-amber-400 transition-all duration-1000 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Header Section */}
+        <header className="flex justify-between items-start mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-amber-500"><Icons.Zap size={14} fill="currentColor" /></span>
+              <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Sistema de Alta Performance</span>
+            </div>
+            <h1 className="text-6xl font-black tracking-tighter mb-2">FOCO<span className="text-amber-500">.</span></h1>
+            <p className="text-slate-400 text-xs font-medium leading-relaxed max-w-[180px]">
+              André, o sucesso exige consistência.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button className="p-3 bg-white text-[#050a18] rounded-2xl shadow-lg"><Download size={20} /></button>
+            <button onClick={requestNotificationPermission} className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-500/20"><Bell size={20} /></button>
+            <button className="p-3 bg-white text-[#050a18] rounded-2xl shadow-lg"><Tag size={20} /></button>
+          </div>
+        </header>
+
+        {/* Category Grid */}
+        <div className="grid grid-cols-4 gap-3 mb-10">
           {CATEGORIES.map(cat => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`
-                px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all
-                ${selectedCategory === cat.id ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'}
+                flex flex-col items-center justify-center py-4 rounded-[2rem] transition-all duration-300
+                ${selectedCategory === cat.id ? 'bg-indigo-600 shadow-xl shadow-indigo-600/20 scale-105' : 'bg-white'}
               `}
             >
-              {cat.name}
+              <div className={`mb-2 ${selectedCategory === cat.id ? 'text-white' : cat.color}`}>
+                <DynamicIcon name={cat.iconName} size={22} />
+              </div>
+              <span className={`text-[9px] font-black uppercase tracking-wider ${selectedCategory === cat.id ? 'text-white' : 'text-slate-900'}`}>
+                {cat.name}
+              </span>
             </button>
           ))}
+        </div>
+
+        {/* Input Field */}
+        <div className="relative mb-12 group">
+          <input
+            type="text"
+            value={newTaskText}
+            onChange={(e) => setNewTaskText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addTask()}
+            placeholder="Novo compromisso?"
+            className="w-full bg-white rounded-[2.5rem] py-6 pl-8 pr-20 text-[#050a18] font-bold text-lg placeholder-slate-400 focus:outline-none shadow-2xl transition-all"
+          />
           <button 
             onClick={addTask}
-            className="ml-auto bg-white text-black p-3 md:p-4 rounded-2xl hover:scale-105 transition-transform active:scale-95 flex items-center justify-center"
+            className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#050a18] text-white p-4 rounded-full hover:scale-105 transition-transform active:scale-95 shadow-lg"
           >
             <Plus size={24} />
           </button>
         </div>
+
+        {/* Task List Header */}
+        <div className="flex justify-between items-center mb-6 px-2">
+          <div className="flex items-center gap-3">
+            <Icons.ListTodo size={18} className="text-amber-500" />
+            <h2 className="text-[12px] font-black uppercase tracking-[0.2em] text-slate-100">Lista de Foco</h2>
+          </div>
+          <span className="bg-indigo-600 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wider">
+            {tasks.filter(t => !t.completed).length} Ativas
+          </span>
+        </div>
+
+        {/* List Section */}
+        <div className="space-y-4">
+          {filteredTasks.length === 0 ? (
+            <div className="text-center py-10 opacity-20 flex flex-col items-center">
+              <Icons.Inbox size={48} className="mb-4" />
+              <p className="font-black text-sm uppercase tracking-widest">Nada pendente</p>
+            </div>
+          ) : (
+            filteredTasks.map(task => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                category={CATEGORIES.find(c => c.id === task.categoryId)}
+                onToggle={toggleTask}
+                onDelete={deleteTask}
+              />
+            ))
+          )}
+        </div>
       </div>
 
-      {/* Task List */}
-      <div className="space-y-4">
-        {tasks.length === 0 && (
-            <div className="text-center py-20 opacity-30">
-                <p className="font-bold">Nenhuma tarefa pendente.</p>
-            </div>
-        )}
-        {tasks.map(task => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            category={CATEGORIES.find(c => c.id === task.categoryId)}
-            onToggle={toggleTask}
-            onDelete={deleteTask}
-          />
-        ))}
+      {/* Floating Action Button */}
+      <div className="fixed bottom-8 right-8">
+        <button className="bg-white p-5 rounded-[2rem] shadow-2xl shadow-black/50 hover:scale-110 active:scale-90 transition-all">
+          <Icons.BrainCircuit size={28} className="text-[#050a18]" />
+        </button>
       </div>
     </div>
   );
 }
+
+// Re-using DynamicIcon and Icons for convenience
+import * as Icons from 'lucide-react';
+const DynamicIcon = ({ name, size = 18 }: { name: string, size?: number }) => {
+  const IconComponent = (Icons as any)[name] || Icons.HelpCircle;
+  return <IconComponent size={size} />;
+};
