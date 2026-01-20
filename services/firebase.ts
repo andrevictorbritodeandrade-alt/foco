@@ -1,6 +1,7 @@
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
-import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from "firebase/messaging";
+import { initializeApp, getApp, getApps, FirebaseApp } from "firebase/app";
+import { getAnalytics, Analytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
+import { getMessaging, Messaging, getToken, onMessage, isSupported as isMessagingSupported } from "firebase/messaging";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCJ9K6sovkNzeO_fuQbSPD9LnIUG0p8Da4",
@@ -13,10 +14,13 @@ const firebaseConfig = {
 };
 
 // Singleton pattern for Firebase app
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-let analyticsInstance: any = null;
-let messagingInstance: any = null;
+// Initialize Firestore
+const db: Firestore = getFirestore(app);
+
+let analyticsInstance: Analytics | null = null;
+let messagingInstance: Messaging | null = null;
 
 /**
  * Safely initialize Analytics
@@ -71,23 +75,27 @@ export const getSafeMessaging = async () => {
 export const requestNotificationPermission = async () => {
   if (typeof window === 'undefined' || !('Notification' in window)) return false;
   
-  const permission = await Notification.requestPermission();
-  if (permission === 'granted') {
-    const messaging = await getSafeMessaging();
-    if (messaging) {
-      try {
-        const token = await getToken(messaging, {
-          vapidKey: 'BLe-R-p-Lh-8mK3_yQ-uP-B6_tY-Y-Y-Y-Y-Y-Y-Y'
-        });
-        console.log('FCM Token:', token);
-        return true;
-      } catch (err) {
-        console.error('Error obtaining FCM token:', err);
-        return true; // Still return true if permission granted even if token fails
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      const messaging = await getSafeMessaging();
+      if (messaging) {
+        try {
+          const token = await getToken(messaging, {
+            vapidKey: 'BLe-R-p-Lh-8mK3_yQ-uP-B6_tY-Y-Y-Y-Y-Y-Y-Y'
+          });
+          console.log('FCM Token:', token);
+          return true;
+        } catch (err) {
+          console.error('Error obtaining FCM token:', err);
+          return true; 
+        }
       }
     }
+    return permission === 'granted';
+  } catch (e) {
+    return false;
   }
-  return permission === 'granted';
 };
 
-export { app };
+export { app, db };
