@@ -14,7 +14,7 @@ export const getNaggingMessage = async (pendingTasks: Task[]): Promise<string> =
     ${taskList}
 
     Sua missão: Escrever UMA frase curta (máximo 15 palavras) que seja irritante, direta e motivadora para o André parar de procrastinar. 
-    Use um tom sarcástico ou autoritário, mas focado no André. 
+    Seja agressivo, use letras maiúsculas para dar ênfase em algumas palavras.
     Fale em Português do Brasil.
   `;
 
@@ -27,10 +27,10 @@ export const getNaggingMessage = async (pendingTasks: Task[]): Promise<string> =
       },
     });
 
-    return response.text.trim() || "VAI TRABALHAR, ANDRÉ!";
+    return response.text?.trim() || "VAI TRABALHAR AGORA, ANDRÉ!";
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return "André, pare de olhar para mim e termine essas tarefas!";
+    console.error("AI Service Error:", error);
+    return "ANDRÉ, PARE DE OLHAR PARA MIM E TERMINE ESSAS TAREFAS!";
   }
 };
 
@@ -38,13 +38,7 @@ export const getAutoCategory = async (taskText: string): Promise<string> => {
   const prompt = `
     Dada a tarefa: "${taskText}"
     Escolha a categoria mais adequada entre estas opções (responda APENAS o ID da categoria):
-    - health (para exercícios, médicos, dieta, sono)
-    - travel (para passagens, hotéis, malas, destinos)
-    - car (para manutenção de carro, reparos domésticos, limpeza)
-    - personal (para lazer, beleza, hobbies, fotos)
-    - study (para cursos, livros, aprendizado, faculdade)
-    - projects (para trabalho, código, reuniões, metas de negócio)
-    - general (se não se encaixar bem em nenhuma acima)
+    - health, travel, car, personal, study, projects, general
     
     Responda apenas o ID em letras minúsculas.
   `;
@@ -55,16 +49,16 @@ export const getAutoCategory = async (taskText: string): Promise<string> => {
       contents: prompt,
       config: { temperature: 0.1 }
     });
-    const categoryId = response.text.trim().toLowerCase();
+    const categoryId = response.text?.trim().toLowerCase();
     const validIds = ['health', 'travel', 'car', 'personal', 'study', 'projects', 'general'];
-    return validIds.includes(categoryId) ? categoryId : 'general';
+    return validIds.find(id => categoryId?.includes(id)) || 'general';
   } catch {
     return 'general';
   }
 };
 
 export const getTaskInsight = async (task: Task): Promise<string> => {
-  const prompt = `Dê uma dica rápida ou curiosidade sobre esta tarefa: "${task.text}" da categoria "${task.categoryId}". Seja breve.`;
+  const prompt = `Dê uma dica ultra rápida (max 10 palavras) para: "${task.text}".`;
   
   try {
     const response = await ai.models.generateContent({
@@ -72,7 +66,7 @@ export const getTaskInsight = async (task: Task): Promise<string> => {
       contents: prompt,
       config: { temperature: 0.7 }
     });
-    return response.text.trim();
+    return response.text?.trim() || "Foco no objetivo!";
   } catch {
     return "Foco no objetivo!";
   }

@@ -2,14 +2,19 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>FOCO - André's Task Master</title>
-    <link rel="manifest" href="manifest.json">
+    
+    <!-- PWA Primary Meta Tags -->
+    <meta name="theme-color" content="#050a18">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="FOCO">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3593/3593505.png">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Custom SVG Logo for Apple Devices -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiByeD0iMTI4IiBmaWxsPSIjMDUwQTE4Ii8+CjxjaXJjbGUgY3g9IjI1NiIgY3k9IjI1NiIgcj0iMTYwIiBzdHJva2U9IiM0RjQ2RTUiIHN0cm9rZS13aWR0aD0iMjQiLz4KPGNpcmNsZSBjeD0iMjU2IiBjeT0iMjU2IiByPSI4MCIgc3Ryb2tlPSIjMjJEM0VFIiBzdHJva2Utd2lkdGg9IjEyIi8+CjxwYXRoIGQ9Ik0yNTYgMTYwVjI1NkwzMDUgMzA1IiBzdHJva2U9IiM0RjQ2RTUiIHN0cm9rZS13aWR0aD0iMjQiLz4KPC9zdmc+">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,9 +33,11 @@
       }
       
       body {
-        background-color: #050a18; /* Dark Navy Background */
+        background-color: #050a18;
         overscroll-behavior-y: contain;
         color: #ffffff;
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
       }
 
       .shake {
@@ -57,12 +64,12 @@
     "react": "https://esm.sh/react@19.0.0",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "firebase/app": "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js",
-    "firebase/analytics": "https://www.gstatic.com/firebasejs/11.1.0/firebase-analytics.js",
-    "firebase/messaging": "https://www.gstatic.com/firebasejs/11.1.0/firebase-messaging.js",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
+    "firebase/app": "https://esm.sh/firebase@11.1.0/app",
+    "firebase/firestore": "https://esm.sh/firebase@11.1.0/firestore",
+    "firebase/analytics": "https://esm.sh/firebase@11.1.0/analytics",
+    "firebase/messaging": "https://esm.sh/firebase@11.1.0/messaging",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "firebase/": "https://esm.sh/firebase@^12.8.0/"
   }
 }
@@ -78,6 +85,12 @@
             .catch(err => console.log('SW reg error:', err));
         });
       }
+      
+      document.addEventListener('touchstart', function (event) {
+        if (event.touches.length > 1) {
+          event.preventDefault();
+        }
+      }, { passive: false });
     </script>
   </body>
 </html>
