@@ -27,9 +27,11 @@ export const signIn = async () => {
     const userCredential = await signInAnonymously(auth);
     console.log("User signed in anonymously:", userCredential.user.uid);
     return userCredential.user;
-  } catch (error) {
-    console.error("Error signing in anonymously:", error);
-    throw error;
+  } catch (error: any) {
+    // Soft fail: Se Auth falhar (ex: não ativado no console), apenas avisa e continua.
+    // Isso permite que o Firestore tente conectar se as regras forem públicas.
+    console.warn("Aviso: Auth Anônima falhou ou não está ativada. Tentando acesso direto.", error.code);
+    return null;
   }
 };
 

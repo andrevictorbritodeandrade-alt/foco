@@ -130,14 +130,15 @@ export default function App() {
     const connectToCloud = async () => {
       setIsSyncing(true);
       try {
-        // 1. Autentica anonimamente para garantir permissão de leitura/escrita
+        // 1. Tenta autenticar. Se falhar, segue em frente (soft fail).
         await signIn();
-        setSyncError(false);
         
         const andreTasksDoc = doc(db, "users_data", "andre_tasks");
         
-        // 2. Escuta mudanças
+        // 2. Escuta mudanças no banco
         unsubscribe = onSnapshot(andreTasksDoc, (docSnap) => {
+          setSyncError(false); // Sucesso na conexão com DB
+          
           if (docSnap.exists()) {
             // Nuvem tem dados -> Baixa e atualiza local
             const cloudTasks = docSnap.data().tasks || [];
@@ -150,22 +151,27 @@ export default function App() {
             setTimeout(() => setIsSyncing(false), 800);
           } else {
             // Nuvem está vazia.
-            // Se tivermos dados locais (ex: criou no celular, abriu nuvem agora), faz upload inicial.
+            // Se tivermos dados locais, faz upload inicial.
             if (tasksRef.current.length > 0) {
-              console.log("Fazendo upload inicial dos dados locais para a nuvem...");
-              setDoc(andreTasksDoc, { tasks: tasksRef.current });
+              console.log("Upload inicial dos dados locais para nuvem...");
+              setDoc(andreTasksDoc, { tasks: tasksRef.current }).catch(e => {
+                 console.error("Falha no upload inicial (Permissão?)", e);
+                 setSyncError(true);
+              });
             }
             setIsSyncing(false);
           }
         }, (error) => {
+          // Erro REAL do Firestore (ex: sem permissão ou sem internet)
           console.error("Erro de conexão Firestore:", error);
           setSyncError(true);
           setIsSyncing(false);
         });
 
       } catch (err) {
-        console.error("Erro no login/setup:", err);
-        setSyncError(true);
+        // Erro genérico de setup (raro)
+        console.error("Erro no setup:", err);
+        // Não setamos syncError aqui para não assustar o usuário se for apenas auth falhando
         setIsSyncing(false);
       }
     };
@@ -194,11 +200,12 @@ export default function App() {
 
   const syncToCloud = async (newTasks: Task[]) => {
     setIsSyncing(true);
-    setSyncError(false);
+    // Não limpa erro aqui para não piscar, deixa o sucesso limpar
     try {
-      // Garante auth antes de salvar
+      // Tenta garantir auth antes de salvar, mas não bloqueia
       await signIn(); 
       await setDoc(doc(db, "users_data", "andre_tasks"), { tasks: newTasks });
+      setSyncError(false); // Sucesso limpa o erro
       setTimeout(() => setIsSyncing(false), 500);
     } catch (e) {
       console.error("Erro ao sincronizar:", e);
@@ -283,7 +290,7 @@ export default function App() {
           )}
         </div>
         <span className={`text-[9px] font-black uppercase tracking-widest ${syncError ? 'text-red-400' : isSyncing ? 'text-amber-400' : 'text-slate-500'}`}>
-          {syncError ? 'ERRO DE CONEXÃO' : isSyncing ? 'SINCRONIZANDO...' : 'NUVEM ON'}
+          {syncError ? 'FALHA SYNC' : isSyncing ? 'SINCRONIZANDO...' : 'NUVEM ON'}
         </span>
         {syncError ? <AlertTriangle size={10} className="text-red-500 ml-0.5" /> : !isSyncing && <Wifi size={10} className="text-emerald-500/50 ml-0.5" />}
       </div>
