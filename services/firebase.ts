@@ -2,6 +2,7 @@ import { initializeApp, getApp, getApps, FirebaseApp } from "firebase/app";
 import { getAnalytics, Analytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 import { getMessaging, Messaging, getToken, onMessage, isSupported as isMessagingSupported } from "firebase/messaging";
 import { getFirestore, Firestore } from "firebase/firestore";
+import { getAuth, signInAnonymously, Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD_C_yn_RyBSopY7Tb9aqLW8akkXJR94Vg",
@@ -16,8 +17,21 @@ const firebaseConfig = {
 // Singleton pattern for Firebase app
 const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore
+// Initialize Firestore & Auth
 const db: Firestore = getFirestore(app);
+const auth: Auth = getAuth(app);
+
+// Helper to ensure user is logged in (anonymously)
+export const signIn = async () => {
+  try {
+    const userCredential = await signInAnonymously(auth);
+    console.log("User signed in anonymously:", userCredential.user.uid);
+    return userCredential.user;
+  } catch (error) {
+    console.error("Error signing in anonymously:", error);
+    throw error;
+  }
+};
 
 let analyticsInstance: Analytics | null = null;
 let messagingInstance: Messaging | null = null;
@@ -98,4 +112,4 @@ export const requestNotificationPermission = async () => {
   }
 };
 
-export { app, db };
+export { app, db, auth };

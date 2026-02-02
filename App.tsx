@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, 
   Bell, 
@@ -16,11 +16,15 @@ import {
   Loader2,
   Calendar,
   CloudLightning,
-  Wifi
+  Wifi,
+  Download,
+  Share,
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { doc, setDoc, onSnapshot } from "firebase/firestore";
-import { db } from './services/firebase';
+import { db, signIn } from './services/firebase';
 import { TaskCard } from './components/TaskCard';
 import { getNaggingMessage, getTaskInsight, getAutoCategory } from './services/ai';
 import { requestNotificationPermission } from './services/firebase';
@@ -50,6 +54,19 @@ export default function App() {
   const [nagMessage, setNagMessage] = useState('Carregando seu destino...');
   const [isAdding, setIsAdding] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(false);
+
+  // UseRef para manter o valor atual de tasks sem causar re-render no useEffect de sync
+  const tasksRef = useRef(tasks);
+  
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  // PWA State
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
   const progress = useMemo(() => {
     if (tasks.length === 0) return 100;
@@ -57,33 +74,109 @@ export default function App() {
     return Math.round((completed / tasks.length) * 100);
   }, [tasks]);
 
-  // Efeito para conectar ao Firestore (Ouvir mudanças - DESCENDO DADOS)
+  // Efeito PWA (Instalação)
   useEffect(() => {
-    const andreTasksDoc = doc(db, "users_data", "andre_tasks");
-    
-    // Mostra sync inicial
-    setIsSyncing(true);
-    
-    const unsubscribe = onSnapshot(andreTasksDoc, (docSnap) => {
-      if (docSnap.exists()) {
-        const cloudTasks = docSnap.data().tasks || [];
-        setTasks(cloudTasks);
-        localStorage.setItem('foco_tasks_andre', JSON.stringify(cloudTasks));
+    // Detectar iOS
+    const isIosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    setIsIOS(isIosDevice);
+
+    // Verificar se já está em modo standalone (App instalado)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+
+    if (isStandalone) {
+      setShowInstallBanner(false);
+      return; // Já está instalado, não faz nada
+    }
+
+    // Se for iOS e não estiver instalado, mostra o banner
+    if (isIosDevice && !isStandalone) {
+      // Pequeno delay para não ser intrusivo imediatamente no load
+      setTimeout(() => setShowInstallBanner(true), 2000);
+    }
+
+    // Se for Android/Desktop, escuta o evento 'beforeinstallprompt'
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (isIOS) {
+      // No iOS não tem prompt programático, mostramos um alerta ou modal com instruções
+      alert("Para instalar no iPhone/iPad:\n1. Toque no botão Compartilhar (quadrado com seta)\n2. Selecione 'Adicionar à Tela de Início'");
+    } else if (installPrompt) {
+      // Android/Desktop
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setShowInstallBanner(false);
+      }
+      setInstallPrompt(null);
+    }
+  };
+
+  // Efeito para conectar ao Firestore com Autenticação
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const connectToCloud = async () => {
+      setIsSyncing(true);
+      try {
+        // 1. Autentica anonimamente para garantir permissão de leitura/escrita
+        await signIn();
+        setSyncError(false);
         
-        // Pisca o indicador de sincronização quando dados chegam
-        setIsSyncing(true);
-        setTimeout(() => setIsSyncing(false), 800);
-      } else {
+        const andreTasksDoc = doc(db, "users_data", "andre_tasks");
+        
+        // 2. Escuta mudanças
+        unsubscribe = onSnapshot(andreTasksDoc, (docSnap) => {
+          if (docSnap.exists()) {
+            // Nuvem tem dados -> Baixa e atualiza local
+            const cloudTasks = docSnap.data().tasks || [];
+            // Só atualiza se for diferente para evitar loops
+            if (JSON.stringify(cloudTasks) !== JSON.stringify(tasksRef.current)) {
+              setTasks(cloudTasks);
+              localStorage.setItem('foco_tasks_andre', JSON.stringify(cloudTasks));
+            }
+            setIsSyncing(true);
+            setTimeout(() => setIsSyncing(false), 800);
+          } else {
+            // Nuvem está vazia.
+            // Se tivermos dados locais (ex: criou no celular, abriu nuvem agora), faz upload inicial.
+            if (tasksRef.current.length > 0) {
+              console.log("Fazendo upload inicial dos dados locais para a nuvem...");
+              setDoc(andreTasksDoc, { tasks: tasksRef.current });
+            }
+            setIsSyncing(false);
+          }
+        }, (error) => {
+          console.error("Erro de conexão Firestore:", error);
+          setSyncError(true);
+          setIsSyncing(false);
+        });
+
+      } catch (err) {
+        console.error("Erro no login/setup:", err);
+        setSyncError(true);
         setIsSyncing(false);
       }
-    }, (error) => {
-      console.error("Erro de conexão:", error);
-      setIsSyncing(false);
-    });
+    };
 
+    connectToCloud();
     requestNotificationPermission();
-    return () => unsubscribe();
-  }, []);
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []); // Executa apenas uma vez no mount
 
   useEffect(() => {
     const timer = setTimeout(() => updateNag(), 1500);
@@ -100,13 +193,16 @@ export default function App() {
   };
 
   const syncToCloud = async (newTasks: Task[]) => {
-    setIsSyncing(true); // Ativa indicador de upload
+    setIsSyncing(true);
+    setSyncError(false);
     try {
+      // Garante auth antes de salvar
+      await signIn(); 
       await setDoc(doc(db, "users_data", "andre_tasks"), { tasks: newTasks });
-      // Pequeno delay para o usuário perceber que salvou
       setTimeout(() => setIsSyncing(false), 500);
     } catch (e) {
       console.error("Erro ao sincronizar:", e);
+      setSyncError(true);
       setIsSyncing(false);
     }
   };
@@ -156,24 +252,28 @@ export default function App() {
   const toggleTask = async (id: number) => {
     const updatedTasks = tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
     setTasks(updatedTasks);
+    localStorage.setItem('foco_tasks_andre', JSON.stringify(updatedTasks));
     await syncToCloud(updatedTasks);
   };
 
   const deleteTask = async (id: number) => {
     const updatedTasks = tasks.filter(t => t.id !== id);
     setTasks(updatedTasks);
+    localStorage.setItem('foco_tasks_andre', JSON.stringify(updatedTasks));
     await syncToCloud(updatedTasks);
   };
 
   const filteredTasks = tasks.filter(t => selectedCategory === 'all' || t.categoryId === selectedCategory);
 
   return (
-    <div className="min-h-screen pb-24 px-3 sm:px-6 pt-12 max-w-2xl mx-auto overflow-x-hidden relative">
+    <div className="min-h-screen pb-32 px-3 sm:px-6 pt-12 max-w-2xl mx-auto overflow-x-hidden relative">
       
-      {/* INDICADOR DE STATUS DA NUVEM (NOVO) */}
-      <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-white/10 shadow-lg z-50">
+      {/* INDICADOR DE STATUS DA NUVEM */}
+      <div className={`absolute top-4 right-4 flex items-center gap-1.5 backdrop-blur-sm px-2.5 py-1.5 rounded-full border shadow-lg z-40 transition-colors duration-300 ${syncError ? 'bg-red-900/80 border-red-500/50' : 'bg-slate-900/80 border-white/10'}`}>
         <div className={`relative flex items-center justify-center w-2 h-2`}>
-          {isSyncing ? (
+          {syncError ? (
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+          ) : isSyncing ? (
             <>
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
@@ -182,10 +282,10 @@ export default function App() {
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
           )}
         </div>
-        <span className={`text-[9px] font-black uppercase tracking-widest ${isSyncing ? 'text-amber-400' : 'text-slate-500'}`}>
-          {isSyncing ? 'SINCRONIZANDO...' : 'NUVEM ON'}
+        <span className={`text-[9px] font-black uppercase tracking-widest ${syncError ? 'text-red-400' : isSyncing ? 'text-amber-400' : 'text-slate-500'}`}>
+          {syncError ? 'ERRO DE CONEXÃO' : isSyncing ? 'SINCRONIZANDO...' : 'NUVEM ON'}
         </span>
-        {!isSyncing && <Wifi size={10} className="text-emerald-500/50 ml-0.5" />}
+        {syncError ? <AlertTriangle size={10} className="text-red-500 ml-0.5" /> : !isSyncing && <Wifi size={10} className="text-emerald-500/50 ml-0.5" />}
       </div>
 
       {/* Header com Coach e Barra de Progresso */}
@@ -289,9 +389,40 @@ export default function App() {
         )}
       </div>
 
-      {/* Alerta Flutuante */}
-      {tasks.some(t => !t.completed) && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center gap-2 sm:gap-3 shadow-2xl animate-bounce border-2 border-indigo-400 z-50 whitespace-nowrap overflow-hidden max-w-[90vw]">
+      {/* BANNER DE INSTALAÇÃO PWA */}
+      {showInstallBanner && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 z-50 animate-[slideUp_0.5s_ease-out]">
+          <div className="max-w-xl mx-auto bg-slate-900/90 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
+                <Download size={20} className="text-white" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-white uppercase tracking-wide">Instalar FOCO App</p>
+                <p className="text-[10px] text-slate-400">Acesso rápido e offline</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setShowInstallBanner(false)}
+                className="p-2 rounded-full hover:bg-white/5 transition-colors"
+              >
+                <X size={18} className="text-slate-400" />
+              </button>
+              <button 
+                onClick={handleInstallClick}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-wider px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+              >
+                {isIOS ? 'Como Instalar' : 'Instalar Agora'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alerta Flutuante (Tarefas Pendentes) */}
+      {tasks.some(t => !t.completed) && !showInstallBanner && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center gap-2 sm:gap-3 shadow-2xl animate-bounce border-2 border-indigo-400 z-40 whitespace-nowrap overflow-hidden max-w-[90vw]">
           <Bell size={14} fill="white" className="shrink-0" />
           <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-tighter truncate">ANDRÉ, EXECUTAR É PRECISO!</span>
         </div>
