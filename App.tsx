@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, 
@@ -16,11 +15,11 @@ import {
   CheckCircle2,
   Loader2,
   Calendar,
-  CloudOff,
-  Download
+  CloudLightning,
+  Wifi
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { doc, setDoc, onSnapshot, getDoc } from "firebase/firestore";
+import { doc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from './services/firebase';
 import { TaskCard } from './components/TaskCard';
 import { getNaggingMessage, getTaskInsight, getAutoCategory } from './services/ai';
@@ -28,31 +27,6 @@ import { requestNotificationPermission } from './services/firebase';
 import { Task, Category } from './types';
 
 const Icons: any = LucideIcons;
-
-// LISTA DEFINITIVA EXTRAÍDA DA IMAGEM DO ANDRÉ
-const IMAGE_TASKS_DATA: Task[] = [
-  { id: 101, text: "VER O PORQUE MEU PLANO LATAM PASS NÃO RENOVOU", categoryId: "general", completed: false, createdAt: 1710000000101, insight: "Foco no objetivo!" },
-  { id: 102, text: "COMPRAR LIXA DE FERRO", categoryId: "car", completed: true, createdAt: 1710000000102 },
-  { id: 103, text: "COMPRAR TEKBOND 200", categoryId: "car", completed: true, createdAt: 1710000000103 },
-  { id: 104, text: "VER ENFORCA-GATO", categoryId: "car", completed: true, createdAt: 1710000000104 },
-  { id: 105, text: "COMPRAR COISAS DE COMER PARA LEVAR NA VIAGEM", categoryId: "travel", completed: true, createdAt: 1710000000105 },
-  { id: 106, text: "COLOCAR O FOCO APP PARA FUNCIONAR OFF-LINE", categoryId: "projects", completed: true, createdAt: 1710000000106 },
-  { id: 107, text: "COMPRAR REMÉDIOS PARA FARMACINHA DA VIAGEM", categoryId: "general", completed: true, createdAt: 1710000000107 },
-  { id: 108, text: "PEGAR SACOLA RETORNÁVEL DE MERCADO E COLOCAR NA MALA", categoryId: "general", completed: true, createdAt: 1710000000108 },
-  { id: 109, text: "AMOLAR A TESOURA DE CABELO EM SANTA CRUZ", categoryId: "general", completed: true, createdAt: 1710000000109 },
-  { id: 110, text: "PLANEJAR AS VIAGENS DE UBER/BOLT JÁ NA ÁFRICA", categoryId: "travel", completed: true, createdAt: 1710000000110 },
-  { id: 111, text: "COLOCAR AS INFORMAÇÕES QUE FALTAM DE ESTADIAS NO APP DA VIAGEM", categoryId: "general", completed: true, createdAt: 1710000000111 },
-  { id: 112, text: "PEGAR A BOTA EMBAIXO DA CAMA", categoryId: "general", completed: true, createdAt: 1710000000112 },
-  { id: 113, text: "LEVAR MINHA PIMENTA PRA VIAGEM", categoryId: "travel", completed: true, createdAt: 1710000000113 },
-  { id: 114, text: "COLOCAR O TABLET PRA CARREGAR", categoryId: "general", completed: true, createdAt: 1710000000114 },
-  { id: 115, text: "ENCHER OS POTES DE REMÉDIOS PARA VIAGEM", categoryId: "general", completed: true, createdAt: 1710000000115 },
-  { id: 116, text: "PASSAR NA PAPELARIA E COMPRAR UMA FITA AMARELA", categoryId: "general", completed: true, createdAt: 1710000000116 },
-  { id: 117, text: "IMPRIMIR COMPROVANTE DE RESIDÊNCIA DE CAXIAS", categoryId: "general", completed: true, createdAt: 1710000000117 },
-  { id: 118, text: "IMPRIMIR CERTIFICADO DE VACINAÇÃO FEBRE AMARELA", categoryId: "travel", completed: true, createdAt: 1710000000118 },
-  { id: 119, text: "ACABAR DE FAZER A LISTA DO QUE TEM NA MALA DE 23KG", categoryId: "general", completed: true, createdAt: 1710000000119 },
-  { id: 120, text: "VER O QUE VOU LEVAR NA MALA DE 10KG", categoryId: "travel", completed: true, createdAt: 1710000000120 },
-];
-
 const CATEGORIES: Category[] = [
   { id: 'all', name: 'TUDO', color: 'text-white', bgColor: 'bg-indigo-600', iconName: 'LayoutGrid' },
   { id: 'health', name: 'SAÚDE', color: 'text-rose-500', bgColor: 'bg-white', iconName: 'HeartPulse' },
@@ -67,17 +41,15 @@ const CATEGORIES: Category[] = [
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>(() => {
     const savedTasks = localStorage.getItem('foco_tasks_andre');
-    return savedTasks ? JSON.parse(savedTasks) : IMAGE_TASKS_DATA;
+    return savedTasks ? JSON.parse(savedTasks) : [];
   });
   
   const [newTaskText, setNewTaskText] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [nagMessage, setNagMessage] = useState('SINCRONIZANDO...');
+  const [nagMessage, setNagMessage] = useState('Carregando seu destino...');
   const [isAdding, setIsAdding] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(true);
-  const [cloudError, setCloudError] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const progress = useMemo(() => {
     if (tasks.length === 0) return 100;
@@ -85,69 +57,28 @@ export default function App() {
     return Math.round((completed / tasks.length) * 100);
   }, [tasks]);
 
-  // Efeito para lidar com a instalação (PWA)
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      console.log('André instalou o app! Agora não tem desculpa.');
-    }
-    setDeferredPrompt(null);
-  };
-
-  // Efeito principal de sincronização
+  // Efeito para conectar ao Firestore (Ouvir mudanças - DESCENDO DADOS)
   useEffect(() => {
     const andreTasksDoc = doc(db, "users_data", "andre_tasks");
     
-    const loadFromCloud = async () => {
-      try {
-        const docSnap = await getDoc(andreTasksDoc);
-        if (docSnap.exists()) {
-          const cloudTasks = docSnap.data().tasks || [];
-          if (cloudTasks.length > 0) {
-            setTasks(cloudTasks);
-            localStorage.setItem('foco_tasks_andre', JSON.stringify(cloudTasks));
-          } else {
-            await syncToCloud(tasks);
-          }
-        } else {
-          await syncToCloud(IMAGE_TASKS_DATA);
-          setTasks(IMAGE_TASKS_DATA);
-        }
-      } catch (err) {
-        console.error("Erro ao ler da nuvem:", err);
-        setCloudError(true);
-      } finally {
-        setIsSyncing(false);
-      }
-    };
-
-    loadFromCloud();
-
+    // Mostra sync inicial
+    setIsSyncing(true);
+    
     const unsubscribe = onSnapshot(andreTasksDoc, (docSnap) => {
       if (docSnap.exists()) {
         const cloudTasks = docSnap.data().tasks || [];
-        if (JSON.stringify(cloudTasks) !== JSON.stringify(tasks)) {
-          setTasks(cloudTasks);
-          localStorage.setItem('foco_tasks_andre', JSON.stringify(cloudTasks));
-        }
-        setCloudError(false);
+        setTasks(cloudTasks);
+        localStorage.setItem('foco_tasks_andre', JSON.stringify(cloudTasks));
+        
+        // Pisca o indicador de sincronização quando dados chegam
+        setIsSyncing(true);
+        setTimeout(() => setIsSyncing(false), 800);
+      } else {
+        setIsSyncing(false);
       }
     }, (error) => {
-      console.error("Erro no Listener Firestore:", error);
-      setCloudError(true);
+      console.error("Erro de conexão:", error);
+      setIsSyncing(false);
     });
 
     requestNotificationPermission();
@@ -155,28 +86,27 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => updateNag(), 2000);
+    const timer = setTimeout(() => updateNag(), 1500);
     return () => clearTimeout(timer);
-  }, [tasks.length, tasks.filter(t => !t.completed).length]);
+  }, [tasks.length, tasks.filter(t => t.completed).length]);
 
   const updateNag = async () => {
     try {
       const msg = await getNaggingMessage(tasks.filter(t => !t.completed));
       setNagMessage(msg);
     } catch (e) {
-      setNagMessage("VAI TRABALHAR, ANDRÉ!");
+      console.error(e);
     }
   };
 
   const syncToCloud = async (newTasks: Task[]) => {
-    setIsSyncing(true);
+    setIsSyncing(true); // Ativa indicador de upload
     try {
-      await setDoc(doc(db, "users_data", "andre_tasks"), { tasks: newTasks }, { merge: true });
-      setCloudError(false);
+      await setDoc(doc(db, "users_data", "andre_tasks"), { tasks: newTasks });
+      // Pequeno delay para o usuário perceber que salvou
+      setTimeout(() => setIsSyncing(false), 500);
     } catch (e) {
       console.error("Erro ao sincronizar:", e);
-      setCloudError(true);
-    } finally {
       setIsSyncing(false);
     }
   };
@@ -187,13 +117,12 @@ export default function App() {
     if (!text || isAdding) return;
     
     setIsAdding(true);
-    const tempId = Date.now();
     
     try {
       const autoCategoryId = await getAutoCategory(text);
       
       const newTask: Task = {
-        id: tempId,
+        id: Date.now(),
         text: text,
         categoryId: autoCategoryId,
         completed: false,
@@ -202,21 +131,23 @@ export default function App() {
       };
 
       const updatedTasks = [newTask, ...tasks];
+      // Atualiza localmente imediatamente
       setTasks(updatedTasks);
       setNewTaskText('');
       setDueDate('');
-      
       localStorage.setItem('foco_tasks_andre', JSON.stringify(updatedTasks));
+      
+      // Sobe para a nuvem
       await syncToCloud(updatedTasks);
 
       const insight = await getTaskInsight(newTask);
       if (insight) {
-        const withInsight = updatedTasks.map(t => t.id === tempId ? { ...t, insight } : t);
+        const withInsight = updatedTasks.map(t => t.id === newTask.id ? { ...t, insight } : t);
         setTasks(withInsight);
         await syncToCloud(withInsight);
       }
     } catch (e) {
-      console.error("Erro ao adicionar", e);
+      console.error("Erro ao adicionar tarefa", e);
     } finally {
       setIsAdding(false);
     }
@@ -225,71 +156,46 @@ export default function App() {
   const toggleTask = async (id: number) => {
     const updatedTasks = tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
     setTasks(updatedTasks);
-    localStorage.setItem('foco_tasks_andre', JSON.stringify(updatedTasks));
     await syncToCloud(updatedTasks);
   };
 
   const deleteTask = async (id: number) => {
     const updatedTasks = tasks.filter(t => t.id !== id);
     setTasks(updatedTasks);
-    localStorage.setItem('foco_tasks_andre', JSON.stringify(updatedTasks));
     await syncToCloud(updatedTasks);
   };
 
   const filteredTasks = tasks.filter(t => selectedCategory === 'all' || t.categoryId === selectedCategory);
 
   return (
-    <div className="min-h-screen pb-24 px-3 sm:px-6 pt-12 max-w-2xl mx-auto overflow-x-hidden">
-      {/* Banner de Instalação (Somente se disponível) */}
-      {deferredPrompt && (
-        <div className="fixed top-4 left-4 right-4 z-[100] bg-white text-[#050a18] p-4 rounded-2xl shadow-2xl border-2 border-indigo-500 flex items-center justify-between animate-bounce">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2 rounded-lg text-white">
-              <Download size={20} />
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-wider">Instalação Obrigatória</p>
-              <p className="text-[12px] font-bold">André, coloque o FOCO na sua tela agora!</p>
-            </div>
-          </div>
-          <button 
-            onClick={handleInstallClick}
-            className="bg-[#050a18] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-colors"
-          >
-            Instalar
-          </button>
+    <div className="min-h-screen pb-24 px-3 sm:px-6 pt-12 max-w-2xl mx-auto overflow-x-hidden relative">
+      
+      {/* INDICADOR DE STATUS DA NUVEM (NOVO) */}
+      <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-white/10 shadow-lg z-50">
+        <div className={`relative flex items-center justify-center w-2 h-2`}>
+          {isSyncing ? (
+            <>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+            </>
+          ) : (
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+          )}
         </div>
-      )}
+        <span className={`text-[9px] font-black uppercase tracking-widest ${isSyncing ? 'text-amber-400' : 'text-slate-500'}`}>
+          {isSyncing ? 'SINCRONIZANDO...' : 'NUVEM ON'}
+        </span>
+        {!isSyncing && <Wifi size={10} className="text-emerald-500/50 ml-0.5" />}
+      </div>
 
-      {/* Header e Progresso */}
+      {/* Header com Coach e Barra de Progresso */}
       <div className="mb-10 text-center space-y-6">
-        <div className="flex flex-col items-center gap-3">
-          <div className="inline-flex items-center gap-2 bg-indigo-500/10 px-4 py-2 rounded-full border border-indigo-500/20">
-            <Zap size={14} className="text-indigo-400 fill-indigo-400" />
-            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-indigo-300">Inteligência Vigilante</span>
-          </div>
-          
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-900/40 rounded-full border border-white/5">
-            {isSyncing ? (
-              <>
-                <Loader2 size={10} className="animate-spin text-indigo-400" />
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Sincronizando...</span>
-              </>
-            ) : cloudError ? (
-              <>
-                <CloudOff size={10} className="text-rose-500" />
-                <span className="text-[8px] font-bold text-rose-500 uppercase tracking-widest">Erro de Rede</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 size={10} className="text-emerald-500" />
-                <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Nuvem Online</span>
-              </>
-            )}
-          </div>
+        <div className="inline-flex items-center gap-2 bg-indigo-500/10 px-4 py-2 rounded-full border border-indigo-500/20">
+          <Zap size={14} className="text-indigo-400 fill-indigo-400" />
+          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-indigo-300">Inteligência Vigilante</span>
         </div>
         
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase leading-tight tracking-tighter text-white min-h-[5rem] flex items-center justify-center px-4">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase leading-none tracking-tighter text-white min-h-[4.5rem] flex items-center justify-center px-2">
           {nagMessage}
         </h1>
 
@@ -305,12 +211,12 @@ export default function App() {
             />
           </div>
           <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 italic">
-            {progress === 100 ? "Nível Mestre: Todas as frentes concluídas." : "O sucesso é a soma de tarefas executadas com rigor."}
+            {progress === 100 ? "Você é o mestre da execução hoje." : "Cada tarefa concluída é um passo rumo ao topo."}
           </p>
         </div>
       </div>
 
-      {/* Categorias */}
+      {/* Filtro de Categorias */}
       <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 mb-8">
         {CATEGORIES.map((cat) => (
           <button
@@ -329,14 +235,14 @@ export default function App() {
         ))}
       </div>
 
-      {/* Input */}
+      {/* Input de Nova Tarefa com IA e Data */}
       <form onSubmit={addTask} className="space-y-4 mb-10">
         <div className="relative group">
           <input
             type="text"
             value={newTaskText}
             onChange={(e) => setNewTaskText(e.target.value)}
-            placeholder="PRÓXIMO PASSO DE EXECUÇÃO?"
+            placeholder="O QUE VAMOS EXECUTAR?"
             disabled={isAdding}
             className="w-full bg-white text-[#050a18] rounded-[2rem] sm:rounded-[2.5rem] py-5 sm:py-6 pl-6 sm:pl-8 pr-16 sm:pr-20 text-[12px] sm:text-[13px] font-black uppercase placeholder:text-slate-300 focus:outline-none shadow-xl border-2 sm:border-4 border-transparent focus:border-indigo-500/20 transition-all disabled:opacity-70"
           />
@@ -361,7 +267,7 @@ export default function App() {
         </div>
       </form>
 
-      {/* Lista */}
+      {/* Lista de Tarefas */}
       <div className="space-y-4 sm:space-y-5">
         {filteredTasks.length > 0 ? (
           filteredTasks.map(task => (
@@ -378,15 +284,16 @@ export default function App() {
             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto border border-white/5">
               <CheckCircle2 size={28} className="text-slate-700" />
             </div>
-            <p className="text-slate-500 text-[10px] sm:text-[11px] font-black uppercase tracking-widest px-4">Tudo executado. André, você superou as expectativas.</p>
+            <p className="text-slate-500 text-[10px] sm:text-[11px] font-black uppercase tracking-widest px-4">A lista está vazia. Comece a agir agora.</p>
           </div>
         )}
       </div>
 
+      {/* Alerta Flutuante */}
       {tasks.some(t => !t.completed) && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center gap-2 sm:gap-3 shadow-2xl animate-bounce border-2 border-indigo-400 z-50 whitespace-nowrap overflow-hidden max-w-[90vw]">
           <Bell size={14} fill="white" className="shrink-0" />
-          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-tighter truncate">ANDRÉ, PARE DE ENROLAR!</span>
+          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-tighter truncate">ANDRÉ, EXECUTAR É PRECISO!</span>
         </div>
       )}
     </div>

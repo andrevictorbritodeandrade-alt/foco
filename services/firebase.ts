@@ -4,7 +4,7 @@ import { getMessaging, Messaging, getToken, onMessage, isSupported as isMessagin
 import { getFirestore, Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCJ9K6sovkNzeO_fuQbSPD9LnIUG0p8Da4",
+  apiKey: "AIzaSyD_C_yn_RyBSopY7Tb9aqLW8akkXJR94Vg",
   authDomain: "chaveunica-225e0.firebaseapp.com",
   projectId: "chaveunica-225e0",
   storageBucket: "chaveunica-225e0.firebasestorage.app",

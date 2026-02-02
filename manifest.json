@@ -1,27 +1,17 @@
-
 {
-  "name": "FOCO: Alta Performance",
+  "name": "FOCO André",
   "short_name": "FOCO",
-  "description": "Sistema Vigilante de Execução do André",
+  "description": "Sistema de Alta Performance do André",
   "start_url": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "minimal-ui"],
-  "background_color": "#050a18",
+  "background_color": "#f8fafc",
   "theme_color": "#4f46e5",
-  "orientation": "portrait",
-  "categories": ["productivity", "utilities"],
   "icons": [
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiByeD0iMTI4IiBmaWxsPSIjMDUwQTE4Ii8+CjxjaXJjbGUgY3g9IjI1NiIgY3k9IjI1NiIgcj0iMTYwIiBzdHJva2U9IiM0RjQ2RTUiIHN0cm9rZS13aWR0aD0iMjQiLz4KPGNpcmNsZSBjeD0iMjU2IiBjeT0iMjU2IiByPSI4MCIgc3Ryb2tlPSIjMjJEM0VFIiBzdHJva2Utd2lkdGg9IjEyIi8+CjxwYXRoIGQ9Ik0yNTYgMTYwVjI1NkwzMDUgMzA1IiBzdHJva2U9IiM0RjQ2RTUiIHN0cm9rZS13aWR0aD0iMjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8cGF0aCBkPSJNMjU2IDExMkwyNjQgMTI4SDI0OEwyNTYgMTEyWiIgZmlsbD0iIzRGNjZFNSIvPgo8cGF0aCBkPSJNMjU2IDQwMEwyNDggMzg0SDI2NEwyNTYgNDAwWiIgZmlsbD0iIzRGNjZFNSIvPgo8cGF0aCBkPSJNNDAwIDI1NkwzODQgMjY0VjI0OEw0MDAgMjU2WiIgZmlsbD0iIzRGNjZFNSIvPgo8cGF0aCBkPSJNMTEyIDI1NkwxMjggMjQ4VjI2NEwxMTIgMjU2WiIgZmlsbD0iIzRGNjZFNSIvPgo8L3N2Zz4=",
+      "src": "https://cdn-icons-png.flaticon.com/512/3593/3593505.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
-    },
-    {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iNDgiIGZpbGw9Iiw0RjQ2RTUiLz4KPGNpcmNsZSBjeD0iOTYiIGN5PSI5NiIgcj0iNjAiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMTIiLz4KPHBhdGggZD0iTTk2IDY0Vjk2TDEyMCAxMjAiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMTIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4=",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any"
     }
   ]
 }
